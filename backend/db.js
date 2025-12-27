@@ -3,11 +3,11 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false, // Required for Supabase connections
+    rejectUnauthorized: false, // required for Supabase
   },
 });
 
-// Test the database connection
+// Optional: simple connection test
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('Error connecting to the database:', err);

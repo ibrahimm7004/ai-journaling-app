@@ -442,7 +442,7 @@ const AudioRecording = ({ onRecordingComplete, showTimer = false, entryId = null
         formData.append("audio", audioFile);
       } else {
         // Fetch audio from saved path and create a file
-        const response = await fetch(savedAudioPath);
+        const response = await fetch(`${API_BASE}/audio/${savedAudioPath}`);
         const blob = await response.blob();
         const file = new File([blob], "audio.mp3", { type: "audio/mpeg" });
         formData.append("audio", file);

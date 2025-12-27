@@ -13,8 +13,7 @@ function getSupabaseClient() {
   });
 }
 
-module.exports = {
-  getSupabaseClient,
-};
+// Export a singleton client for convenience
+const supabase = getSupabaseClient();
 
-
+module.exports = supabase;

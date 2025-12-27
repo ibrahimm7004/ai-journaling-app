@@ -4,7 +4,6 @@ dotenv.config({ path: './config.env' });
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const app = express();
 const entryRouter = require('./routes/entryRoutes');
 const userRouter = require('./routes/userRoutes');
@@ -15,9 +14,6 @@ const transcriptRouter = require('./routes/transcriptRoutes');
 app.use(cors());
 
 app.use(express.json());
-
-// Serve audio files
-app.use('/api/journal-ease/audio', express.static(path.join(__dirname, 'audio_files')));
 
 // Auth routes (signup/login) - no authentication required
 app.use('/api/journal-ease/auth', authRouter);

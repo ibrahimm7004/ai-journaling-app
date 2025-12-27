@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import axios from "axios";
-
 import { API_BASE } from "../config/api";
 
 const ResetPassword = () => {

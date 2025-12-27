@@ -14,9 +14,8 @@ exports.signup = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const existingUser = findStmt.get(email);
+    const existingUserResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingUser = existingUserResult.rows[0];
 
     if (existingUser) {
       // Check if this is an old Auth0 user (no password_hash)
@@ -37,17 +36,11 @@ exports.signup = async (req, res) => {
     const saltRounds = 10;
     const password_hash = await bcrypt.hash(password, saltRounds);
 
-    // Insert new user
-    const insertStmt = db.prepare(
-      'INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)'
+    const insertResult = await db.query(
+      'INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email, name, password_hash]
     );
-    const result = insertStmt.run(email, name, password_hash);
-
-    const newUser = {
-      id: result.lastInsertRowid,
-      email,
-      name,
-    };
+    const newUser = insertResult.rows[0];
 
     // Generate JWT token
     const token = jwt.sign(
@@ -85,9 +78,8 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Find user by email
-    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const user = findStmt.get(email);
+    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
 
     if (!user) {
       return res.status(401).json({
@@ -155,9 +147,8 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // Find user by email
-    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    const user = findStmt.get(email);
+    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
 
     if (!user) {
       // Don't reveal if user exists or not (security best practice)
@@ -176,10 +167,10 @@ exports.forgotPassword = async (req, res) => {
     resetTokenExpires.setHours(resetTokenExpires.getHours() + 1);
 
     // Save reset token to database
-    const updateStmt = db.prepare(
-      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?'
+    await db.query(
+      'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE email = $3',
+      [resetToken, resetTokenExpires.toISOString(), email]
     );
-    updateStmt.run(resetToken, resetTokenExpires.toISOString(), email);
 
     // In production, you would send an email here with the reset link
     // For now, we'll return the token in development mode
@@ -232,10 +223,11 @@ exports.resetPassword = async (req, res) => {
     }
 
     // Find user by reset token
-    const findStmt = db.prepare(
-      'SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > datetime("now")'
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE reset_token = $1 AND reset_token_expires > NOW()',
+      [token]
     );
-    const user = findStmt.get(token);
+    const user = userResult.rows[0];
 
     if (!user) {
       return res.status(400).json({
@@ -249,10 +241,10 @@ exports.resetPassword = async (req, res) => {
     const password_hash = await bcrypt.hash(password, saltRounds);
 
     // Update password and clear reset token
-    const updateStmt = db.prepare(
-      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?'
+    await db.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
+      [password_hash, user.id]
     );
-    updateStmt.run(password_hash, user.id);
 
     res.status(200).json({
       status: 'success',

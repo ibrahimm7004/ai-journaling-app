@@ -1,3 +1,0 @@
-VITE_API_BASE=https://ai-journaling-app-backend.vercel.app/
-
-

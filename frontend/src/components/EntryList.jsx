@@ -626,13 +626,9 @@ const Entry = ({
     // Load audio file if local_path exists
     useEffect(() => {
         if (entry.local_path) {
-            // local_path is now a full public URL (Supabase Storage). Keep backward compat for old local paths.
-            if (entry.local_path.startsWith('http://') || entry.local_path.startsWith('https://')) {
-                setAudioURL(entry.local_path);
-                return;
-            }
-            const audioPath = entry.local_path.startsWith('audio_files/')
-                ? entry.local_path
+            // Construct audio URL from backend
+            const audioPath = entry.local_path.startsWith('audio_files/') 
+                ? entry.local_path 
                 : `audio_files/${entry.local_path}`;
             setAudioURL(`${API_BASE}/audio/${audioPath}`);
         }

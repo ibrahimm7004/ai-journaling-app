@@ -1,41 +1,24 @@
 const db = require('./../db');
 
-// This endpoint is no longer needed - signup is handled by authController
-// Keeping for backward compatibility but it just returns the current user
+// Return current authenticated user (legacy endpoint kept for compatibility)
 exports.createUser = async (req, res) => {
   try {
-    // Get user from authenticated request
     const userId = req.user?.userId;
-    
     if (!userId) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Not authenticated',
-      });
+      return res.status(401).json({ status: 'fail', message: 'Not authenticated' });
     }
 
-    const stmt = db.prepare('SELECT id, email, name FROM users WHERE id = ?');
-    const user = stmt.get(userId);
+    const { rows } = await db.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
+    const user = rows[0];
 
     if (!user) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'User not found',
-      });
+      return res.status(404).json({ status: 'fail', message: 'User not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        user,
-      },
-    });
+    res.status(200).json({ status: 'success', data: { user } });
   } catch (err) {
     console.error('Create user error:', err);
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-    });
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
 
@@ -43,28 +26,17 @@ exports.getUser = async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
-    const user = stmt.get(userId);
+    const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const user = rows[0];
 
     if (!user) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'User not found',
-      });
+      return res.status(404).json({ status: 'fail', message: 'User not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        user,
-      },
-    });
+    res.status(200).json({ status: 'success', data: { user } });
   } catch (err) {
     console.error('Get user error:', err);
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-    });
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
 
@@ -73,35 +45,25 @@ exports.updateUser = async (req, res) => {
   const { email, name } = req.body;
 
   try {
-    const getStmt = db.prepare('SELECT * FROM users WHERE id = ?');
-    const existingUser = getStmt.get(userId);
+    const { rows: existingRows } = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const existingUser = existingRows[0];
 
     if (!existingUser) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'User not found',
-      });
+      return res.status(404).json({ status: 'fail', message: 'User not found' });
     }
 
-    const updateStmt = db.prepare(
-      'UPDATE users SET email = COALESCE(?, email), name = COALESCE(?, name) WHERE id = ?'
+    await db.query(
+      'UPDATE users SET email = COALESCE($1, email), name = COALESCE($2, name) WHERE id = $3',
+      [email, name, userId]
     );
-    updateStmt.run(email, name, userId);
 
-    const updatedUser = getStmt.get(userId);
+    const { rows } = await db.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
+    const updatedUser = rows[0];
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        user: updatedUser,
-      },
-    });
+    res.status(200).json({ status: 'success', data: { user: updatedUser } });
   } catch (err) {
     console.error('Update user error:', err);
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-    });
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
 
@@ -109,25 +71,16 @@ exports.deleteUser = async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const deleteStmt = db.prepare('DELETE FROM users WHERE id = ?');
-    const result = deleteStmt.run(userId);
+    const { rowCount } = await db.query('DELETE FROM users WHERE id = $1', [userId]);
 
-    if (result.changes === 0) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'User not found',
-      });
+    if (!rowCount) {
+      return res.status(404).json({ status: 'fail', message: 'User not found' });
     }
 
-    res.status(204).json({
-      status: 'success',
-      data: null,
-    });
+    res.status(204).json({ status: 'success', data: null });
   } catch (err) {
     console.error('Delete user error:', err);
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-    });
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
+

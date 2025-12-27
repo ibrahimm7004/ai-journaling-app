@@ -1,12 +1,13 @@
 const dotenv = require('dotenv');
 const app = require('./app');
-// Initialize SQLite database (creates tables on first require)
 require('./db');
 
 dotenv.config({ path: './config.env' });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 
-app.listen(port, () => {
-  console.log(`App running on port ${port}...`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`App running on port ${port}...`);
+  });
+}
