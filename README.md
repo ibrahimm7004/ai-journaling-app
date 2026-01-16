@@ -64,7 +64,7 @@ ai-journaling-app/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/zunnoonwaheed/Journling-App.git
+   git clone https://github.com/ibrahimm7004/ai-journaling-app.git
    cd Journling-App
    ```
 
