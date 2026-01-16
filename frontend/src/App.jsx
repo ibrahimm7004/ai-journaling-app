@@ -1,6 +1,6 @@
 import { Landing, Profile, Dashboard, ForgotPassword, ResetPassword } from "./Pages";
 import { BrowserRouter as Router, Route, Routes} from "react-router-dom";
-import { EntryIdProvider, UserIdProvider, SelectedentryIdProvider, ScriptProvider } from "./components";
+import { EntryIdProvider, UserIdProvider, SelectedentryIdProvider, SelectedEntryProvider, ScriptProvider } from "./components";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -10,7 +10,8 @@ const App = () => {
       <UserIdProvider>
         <EntryIdProvider>
           <SelectedentryIdProvider>
-            <ScriptProvider>
+            <SelectedEntryProvider>
+              <ScriptProvider>
               <Router>
                 <Routes>
                   <Route exact path='/' element={<Landing/>}></Route>
@@ -28,7 +29,8 @@ const App = () => {
                   }></Route>
                 </Routes>
               </Router> 
-            </ScriptProvider>
+              </ScriptProvider>
+            </SelectedEntryProvider>
           </SelectedentryIdProvider>
         </EntryIdProvider>
       </UserIdProvider>

@@ -16,6 +16,7 @@ const recorder = new MicRecorder({
 
 const AudioRecording = ({ onRecordingComplete, showTimer = false, entryId = null, onRetryTranscription = null }) => {
   const { script,setScript } = useScript();
+  const { token } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [blobURL, setBlobURL] = useState("");
   const [isBlocked, setIsBlocked] = useState(false);

@@ -1,6 +1,7 @@
 import { useEntryId } from "./EntryIdContext";
 import { UserIdContext} from "./UserIdContext";
 import { useSelectedentryId } from "./SelectedEntryIdContext";
+import { useSelectedEntry } from "./SelectedEntryContext";
 import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
 import { useState, useEffect, useContext, useRef } from "react";
@@ -61,7 +62,9 @@ const EntryList = ({ showRecordingControls = false }) => {
 
     const getEntries = async(userId) => {
         if (!userId || !token) return;
+
         try {
+            // Pass userId as-is (can be UUID or numeric). Backend will use JWT token to identify user.
             const response = await axios.get(
                 API_BASE + '/users/' + userId +'/entries',
                 {
@@ -73,12 +76,15 @@ const EntryList = ({ showRecordingControls = false }) => {
             );
             const entries_data = response.data.data.entries;
             setEntries(entries_data);
-            
+
             // Auto-expand today's date
             const today = new Date().toISOString().split('T')[0];
             setExpandedDays(new Set([today]));
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error fetching entries:', error);
+            if (error.response?.status === 404 && error.response?.data?.message?.includes('not found in local database')) {
+                console.warn('User not synced to local database yet');
+            }
         }
     };
 
@@ -88,13 +94,18 @@ const EntryList = ({ showRecordingControls = false }) => {
 
     const handleCreateEntry = async(e) => {
         e.preventDefault();
-        if (!userId || !token) return;
+        if (!userId || !token) {
+            alert('User not authenticated. Please try logging in again.');
+            return;
+        }
+
         if (!script || script.trim() === '') {
             alert('Please record a journal entry first');
             return;
         }
-        
+
         try {
+            // Pass userId as-is (can be UUID or numeric). Backend will use JWT token to identify user.
             const response = await axios.post(
                 API_BASE + '/users/' + userId + '/entries',
                 {
@@ -112,8 +123,9 @@ const EntryList = ({ showRecordingControls = false }) => {
                 }
             );
             const newEntryData = response.data.data.entry;
-            
+
             // Save transcript to transcripts table if we have a transcript
+            // Note: The backend automatically updates the entry with transcript_id, so no need for additional calls
             if (script && script.trim() !== '' && newEntryData.id) {
                 try {
                     await axios.post(
@@ -131,47 +143,31 @@ const EntryList = ({ showRecordingControls = false }) => {
                             },
                         }
                     );
-                    // Update entry with transcript_id
-                    const transcriptResponse = await axios.get(
-                        API_BASE + '/recordings/' + newEntryData.id + '/transcript',
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                            },
-                        }
-                    );
-                    if (transcriptResponse.data.data.transcript) {
-                        await axios.patch(
-                            API_BASE + '/users/' + userId + '/entries/' + newEntryData.id,
-                            { transcript_id: transcriptResponse.data.data.transcript.id },
-                            {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`,
-                                    'Content-Type': 'application/json',
-                                },
-                            }
-                        );
-                    }
+                    // Backend already updates the entry with transcript_id, so no need for GET + PATCH
                 } catch (transcriptError) {
                     console.error('Error saving transcript:', transcriptError);
                     // Don't fail the whole process if transcript saving fails
                 }
             }
-            
+
             // Update entries and expand the date
             setEntries((entries) => [newEntryData, ...entries]);
             setExpandedDays(prev => new Set([...prev, journalDate]));
-            
+
             // Reset form
             setScript("");
             setJournalDate(new Date().toISOString().split('T')[0]);
             setRecordingData({ duration_ms: null, local_path: null });
-            
+
             // Close the popup
             setPopupActive(false);
         } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to save journal entry. Please try again.');
+            console.error('Error creating entry:', error);
+            if (error.response?.status === 404 && error.response?.data?.message?.includes('not found in local database')) {
+                alert('Your account needs to be synced. Please contact support.');
+            } else {
+                alert('Failed to save journal entry. Please try again.');
+            }
         }
     };
 
@@ -621,16 +617,25 @@ const Entry = ({
     const { token } = useAuth();
     const { userId } = useContext(UserIdContext);
     const {selectedentryId, setSelectedentryId} = useSelectedentryId();
+    const { setSelectedEntry } = useSelectedEntry();
     const [audioURL, setAudioURL] = useState(null);
 
     // Load audio file if local_path exists
     useEffect(() => {
         if (entry.local_path) {
-            // Construct audio URL from backend
-            const audioPath = entry.local_path.startsWith('audio_files/') 
-                ? entry.local_path 
-                : `audio_files/${entry.local_path}`;
-            setAudioURL(`${API_BASE}/audio/${audioPath}`);
+            // local_path is already a Supabase Storage public URL, use it directly
+            // If it's a full URL (starts with http/https), use it as-is
+            // Otherwise, it might be a relative path (legacy format)
+            if (entry.local_path.startsWith('http://') || entry.local_path.startsWith('https://')) {
+                setAudioURL(entry.local_path);
+            } else {
+                // Legacy format - construct Supabase Storage URL
+                // This shouldn't happen with current implementation, but handle it for backwards compatibility
+                console.warn('Legacy audio path format detected:', entry.local_path);
+                setAudioURL(null);
+            }
+        } else {
+            setAudioURL(null);
         }
     }, [entry.local_path]);
 
@@ -648,7 +653,14 @@ const Entry = ({
             );
             onRefresh();
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error deleting entry:', error);
+            if (error.response?.status === 404) {
+                // Entry doesn't exist in backend - refresh list to sync with backend state
+                console.log('Entry not found in backend, refreshing list to sync...');
+                onRefresh();
+            } else {
+                alert('Failed to delete entry. Please try again.');
+            }
         }
     };
 
@@ -663,6 +675,8 @@ const Entry = ({
         e.preventDefault();
         setEntryId(entry.id);
         setSelectedentryId(entry.id);
+        // Set the full entry object for instant transcript display
+        setSelectedEntry(entry);
     };
 
     const formatTime = (dateString) => {

@@ -12,7 +12,10 @@ const Sidebar = () => {
   // Set userId from authenticated user
   useEffect(() => {
     if (user && user.id) {
+      // Set userId directly from user.id (can be UUID or numeric)
+      // Backend will handle conversion via JWT token
       setUserId(user.id);
+      console.log('User ID set:', user.id);
     }
   }, [user, setUserId]);
 
@@ -27,7 +30,9 @@ const Sidebar = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Journal Ease</h1>
-              <p className="text-sm text-slate-300">Welcome back, {user?.name || 'User'}</p>
+              <p className="text-sm text-slate-300">
+                {`Welcome back, ${user?.name || 'User'}`}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-4">

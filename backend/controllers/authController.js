@@ -1,6 +1,7 @@
 const db = require('./../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const supabase = require('../services/supabaseClient');
 
 // Signup - Create new user
 exports.signup = async (req, res) => {
@@ -252,6 +253,62 @@ exports.resetPassword = async (req, res) => {
     });
   } catch (err) {
     console.error('Reset password error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+};
+
+// Sync Supabase OAuth user to local database
+exports.syncSupabaseUser = async (req, res) => {
+  try {
+    const { supabaseUserId, email, name } = req.body;
+
+    if (!supabaseUserId || !email) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Supabase user ID and email are required',
+      });
+    }
+
+    // Check if user already exists in local database
+    const existingUserResult = await db.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+    const existingUser = existingUserResult.rows[0];
+
+    if (existingUser) {
+      // User exists, return existing user
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            name: existingUser.name,
+          },
+        },
+      });
+    }
+
+    // Create new user in local database (OAuth users don't have password_hash)
+    const insertResult = await db.query(
+      'INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email, name || email.split('@')[0], 'oauth_user'] // Use placeholder for password_hash
+    );
+    const newUser = insertResult.rows[0];
+
+    res.status(201).json({
+      status: 'success',
+      data: {
+        user: newUser,
+      },
+    });
+  } catch (err) {
+    console.error('Sync Supabase user error:', err);
     res.status(500).json({
       status: 'error',
       message: 'Internal server error',

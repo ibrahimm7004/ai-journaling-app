@@ -1,9 +1,10 @@
 const axios = require('axios');
 const db = require('../db');
 
-const RESTDB_BASE_URL = process.env.RESTDB_BASE_URL;
-const RESTDB_API_KEY = process.env.RESTDB_API_KEY;
-const RESTDB_COLLECTION = process.env.RESTDB_COLLECTION || 'journalentries';
+// Sanitize environment variables - remove newlines, tabs, and other invalid characters
+const RESTDB_BASE_URL = (process.env.RESTDB_BASE_URL || '').trim().replace(/[\r\n\t]/g, '');
+const RESTDB_API_KEY = (process.env.RESTDB_API_KEY || '').trim().replace(/[\r\n\t]/g, '');
+const RESTDB_COLLECTION = (process.env.RESTDB_COLLECTION || 'journalentries').trim().replace(/[\r\n\t]/g, '');
 
 const hasRestDbConfig = () => {
   const hasConfig = Boolean(RESTDB_BASE_URL && RESTDB_API_KEY && RESTDB_COLLECTION);
@@ -12,6 +13,8 @@ const hasRestDbConfig = () => {
     console.log('[restdb] RESTDB_BASE_URL:', RESTDB_BASE_URL ? '✓' : '✗');
     console.log('[restdb] RESTDB_API_KEY:', RESTDB_API_KEY ? '✓' : '✗');
     console.log('[restdb] RESTDB_COLLECTION:', RESTDB_COLLECTION || '✗');
+  } else {
+    console.log('[restdb] Configuration validated successfully');
   }
   return hasConfig;
 };
@@ -20,7 +23,7 @@ const restdbClient = axios.create({
   baseURL: RESTDB_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'x-apikey': RESTDB_API_KEY || '',
+    'x-apikey': RESTDB_API_KEY,
   },
   timeout: 10000,
 });

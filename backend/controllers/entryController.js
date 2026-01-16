@@ -4,9 +4,36 @@ const { syncEntryToRestDb } = require('../services/restdbService');
 // Get a specific entry for a logged-in user
 exports.getEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
 
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const { rows } = await db.query(
       `SELECT id, user_id, transcript, created_at, updated_at, duration_ms, local_path, transcript_id, journal_date, drive_sync_enabled, sync_status, last_sync_error
        FROM entries WHERE id = $1 AND user_id = $2`,
@@ -27,9 +54,36 @@ exports.getEntry = async (req, res) => {
 
 // Get all entries for a user
 exports.getAllEntries = async (req, res) => {
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
 
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const { rows } = await db.query(
       `SELECT id, user_id, transcript, created_at, updated_at, duration_ms, local_path, transcript_id, journal_date, drive_sync_enabled, sync_status, last_sync_error
        FROM entries
@@ -52,10 +106,47 @@ exports.getAllEntries = async (req, res) => {
 // Update an entry
 exports.updateEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
   const { transcript, journal_date } = req.body;
 
+  console.log(`[UPDATE] === START UPDATE REQUEST ===`);
+  console.log(`[UPDATE] EntryId from URL params:`, entryId);
+  console.log(`[UPDATE] Request body:`, req.body);
+  console.log(`[UPDATE] req.user:`, req.user);
+
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      console.log(`[UPDATE] Supabase user detected. Email:`, email);
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      console.log(`[UPDATE] User lookup result:`, userResult.rows);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+        console.log(`[UPDATE] Converted to local user ID:`, userId);
+      } else {
+        console.log(`[UPDATE] User not found in local database!`);
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+      console.log(`[UPDATE] Regular JWT user. User ID:`, userId);
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const updateClauses = [];
     const params = [];
 
@@ -74,6 +165,17 @@ exports.updateEntry = async (req, res) => {
 
     params.push(entryId, userId);
 
+    console.log(`[UPDATE] Attempting to update entry ${entryId} for user ${userId}`);
+    console.log(`[UPDATE] Update clauses:`, updateClauses);
+    console.log(`[UPDATE] Params:`, params);
+
+    // First, check if the entry exists
+    const checkResult = await db.query(
+      'SELECT id, user_id FROM entries WHERE id = $1',
+      [entryId]
+    );
+    console.log(`[UPDATE] Entry existence check:`, checkResult.rows);
+
     const { rowCount } = await db.query(
       `UPDATE entries
        SET ${updateClauses.join(', ')}, updated_at = NOW()
@@ -81,7 +183,11 @@ exports.updateEntry = async (req, res) => {
       params
     );
 
+    console.log(`[UPDATE] Rows updated:`, rowCount);
+
     if (!rowCount) {
+      console.log(`[UPDATE] Entry ${entryId} not found for user ${userId}`);
+      console.log(`[UPDATE] === END UPDATE REQUEST (FAILED) ===`);
       return res.status(404).json({ status: 'fail', message: 'Entry not found' });
     }
 
@@ -108,31 +214,90 @@ exports.updateEntry = async (req, res) => {
 // Delete entry
 exports.deleteEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
 
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
+    console.log(`Attempting to delete entry ${entryId} for user ${userId}`);
+
     const { rowCount } = await db.query(
       'DELETE FROM entries WHERE id = $1 AND user_id = $2',
       [entryId, userId]
     );
 
     if (!rowCount) {
+      console.log(`Entry ${entryId} not found for user ${userId}`);
       return res.status(404).json({ status: 'fail', message: 'Entry not found' });
     }
 
+    console.log(`Successfully deleted entry ${entryId}`);
     res.status(204).json({ status: 'success', data: null });
   } catch (err) {
     console.error('Delete entry error:', err);
+    console.error('Error details:', err.stack);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
 
 // Create a new entry
 exports.createEntry = async (req, res) => {
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
   const { transcript, duration_ms, local_path, journal_date } = req.body;
 
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const journalDate = journal_date || new Date().toISOString().split('T')[0];
     const { rows } = await db.query(
       `INSERT INTO entries (user_id, transcript, duration_ms, local_path, journal_date, created_at, updated_at)
@@ -176,7 +341,7 @@ exports.getEntriesByDate = async (req, res) => {
 
 // Toggle drive sync for a whole journal_date for the logged-in user
 exports.updateDaySyncSettings = async (req, res) => {
-  const userId = req.user?.userId || req.params.userId;
+  let userId;
   const { date } = req.params;
   const { drive_sync_enabled } = req.body;
 
@@ -185,6 +350,33 @@ exports.updateDaySyncSettings = async (req, res) => {
   }
 
   try {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     if (!drive_sync_enabled) {
       await db.query(
         `UPDATE entries
