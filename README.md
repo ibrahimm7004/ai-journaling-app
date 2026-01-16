@@ -251,5 +251,3 @@ For issues or questions:
 - Vercel for hosting
 
 ---
-
-Made with ❤️ by [Zunnoon Waheed](https://github.com/zunnoonwaheed)
